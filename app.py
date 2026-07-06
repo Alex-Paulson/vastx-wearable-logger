@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 from bleak import BleakScanner, BleakClient
 
-HEART_RATE_MANAGEMENT_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
+HEART_RATE_MEASUREMENT_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
 
 if "devices" not in st.session_state:
   st.session_state.devices = []
@@ -35,10 +35,16 @@ if "queue" not in st.session_state:
 if "device_name" not in st.session_state:
   st.session_state.device_name = ""
 
+if "device_address" not in st.session_state:
+  st.session_state.device_address = ""
+
+if "connection_thread_started" not in st.session_state:
+  st.session_state.connection_thread_started = False
+
 def scan_devices():
   async def scan():
     return await BleakScanner.discover(timeout = 10)
-  
+
   devices = asyncio.run(scan())
   results = []
 
@@ -66,10 +72,17 @@ def ble_worker(device_address, output_queue):
   async def connect():
     try:
       async with BleakClient(device_address) as client:
-        output_queue.put({
-          "type": "status",
-          "message": "Connected."
-        })
+        if client.is_connected:
+          output_queue.put({
+            "type": "status",
+            "message": "Connected."
+          })
+        else:
+          output_queue.put({
+            "type": "status",
+            "message": "Connection failed."
+          })
+          return
 
         def handle_heart_rate(sender, data):
           heart_rate = parse_heart_rate(data)
@@ -79,7 +92,10 @@ def ble_worker(device_address, output_queue):
             "heart_rate": heart_rate
           })
 
-        await client.start_notify(HEART_RATE_MANAGEMENT_UUID, handle_heart_rate)
+        await client.start_notify(
+          HEART_RATE_MEASUREMENT_UUID,
+          handle_heart_rate
+        )
 
         while True:
           await asyncio.sleep(1)
@@ -103,7 +119,7 @@ def start_connection(device_address):
 
 def save_to_csv(participant_id, session_id, notes):
   if len(st.session_state.data) == 0:
-    st.session_state.status = "No data available to save."
+    st.session_state.status = "No data to save."
     return None
 
   file_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -127,14 +143,51 @@ def save_to_csv(participant_id, session_id, notes):
 
     for row in st.session_state.data:
       writer.writerow(row)
-  
-  st.session_state.status = "Data saved successfully: " + filename
+
+  st.session_state.status = "Data saved successfully."
   return filename
 
-st.set_page_config(page_title = "VASTX Wearable Logger", layout = "wide")
+def process_queue(participant_id, session_id, notes):
+  while not st.session_state.queue.empty():
+    message = st.session_state.queue.get()
+
+    if message["type"] == "status":
+      st.session_state.status = message["message"]
+
+      if message["message"] == "Connected.":
+        st.session_state.connected = True
+
+      if "disconnected" in message["message"]:
+        st.session_state.connected = False
+        st.session_state.recording = False
+        st.session_state.connection_thread_started = False
+
+    if message["type"] == "heart_rate":
+      heart_rate = message["heart_rate"]
+      st.session_state.heart_rate = heart_rate
+
+      if st.session_state.recording:
+        st.session_state.data.append({
+          "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+          "participant_id": participant_id,
+          "session_id": session_id,
+          "device_name": st.session_state.device_name,
+          "device_address": st.session_state.device_address,
+          "heart_rate_bpm": heart_rate,
+          "rr_intervals_ms": "",
+          "event_marker": "",
+          "notes": notes
+        })
+
+st.set_page_config(
+  page_title = "VASTX Wearable Logger",
+  layout = "wide"
+)
 
 st.title("VASTX Wearable Logger")
 st.write("Polar H10 live physiological data logger")
+
+st.info("Status: " + st.session_state.status)
 
 st.header("Participant details")
 
@@ -142,10 +195,12 @@ participant_id = st.text_input("Participant ID", value = "P001")
 session_id = st.text_input("Session ID", value = "S001")
 notes = st.text_area("Notes", value = "")
 
+process_queue(participant_id, session_id, notes)
+
 st.header("Device connection")
 
 if st.button("Scan for devices"):
-  st.session_state.status = "No devices found."
+  st.session_state.status = "Scanning for devices."
 
   try:
     st.session_state.devices = scan_devices()
@@ -156,9 +211,12 @@ if st.button("Scan for devices"):
       st.session_state.status = "Devices found."
 
   except Exception as error:
-    st.session_state.status = "Connection failed: " + str(error)
+    st.session_state.status = "Connection failed. " + str(error)
 
-device_labels = [device["label"] for device in st.session_state.devices]
+device_labels = []
+
+for device in st.session_state.devices:
+  device_labels.append(device["label"])
 
 selected_device = st.selectbox(
   "Detected devices",
@@ -179,43 +237,24 @@ if st.button("Connect"):
       st.session_state.device_name = selected["name"]
       st.session_state.device_address = selected["address"]
       st.session_state.status = "Connecting to Polar H10."
-      st.session_state.connected = True
+      st.session_state.connection_thread_started = True
       start_connection(selected["address"])
+    else:
+      st.session_state.status = "Please select a device first."
 
 st.header("Live data")
 
-while not st.session_state.queue.empty():
-  message = st.session_state.queue.get()
+process_queue(participant_id, session_id, notes)
 
-  if message["type"] == "status":
-    st.session_state.status = message["message"]
+st.metric(
+  label = "Heart rate: ",
+  value = str(st.session_state.heart_rate) + " bpm"
+)
 
-    if "Connected" in message["message"]:
-      st.session_state.connected = True
-
-    if "disconnected" in message["message"]:
-      st.session_state.connected = False
-      st.session_state.recording = False
-
-  if message["type"] == "heart_rate":
-    heart_rate = message["heart_rate"]
-    st.session_state.heart_rate = heart_rate
-
-    if st.session_state.recording:
-      st.session_state.data.append({
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "participant_id": participant_id,
-        "session_id": session_id,
-        "device_name": st.session_state.device_name,
-        "device_address": st.session_state.device_address,
-        "heart_rate_bpm": heart_rate,
-        "rr_intervals_ms": "",
-        "event_marker": "",
-        "notes": notes
-      })
-
-st.metric("Heart rate: ", str(st.session_state.heart_rate) + " bpm")
-st.write("Connection status: ", st.session_state.status)
+if st.session_state.connected:
+  st.success("Connection status: " + st.session_state.status)
+else:
+  st.warning("Connection status: " + st.session_state.status)
 
 st.header("Recording")
 
@@ -231,12 +270,17 @@ with col1:
 
 with col2:
   if st.button("Stop recording"):
-    st.session_state.recording = False
-    st.session_state.status = "Recording stopped."
+    if st.session_state.recording:
+      st.session_state.recording = False
+      st.session_state.status = "Recording stopped."
+    else:
+      st.session_state.status = "Recording is not currently active."
 
 with col3:
   if st.button("Save CSV"):
     save_to_csv(participant_id, session_id, notes)
+
+st.write("Recording active: ", st.session_state.recording)
 
 st.header("Data preview")
 

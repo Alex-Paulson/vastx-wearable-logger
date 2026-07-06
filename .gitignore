@@ -3,3 +3,4 @@ vnev/
 __pycache__/
 *.pyc
 heart_rate_data.csv
+VASTX_*.csv
