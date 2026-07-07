@@ -119,7 +119,7 @@ def start_connection(device_address):
 
 def save_to_csv(participant_id, session_id, notes):
   if len(st.session_state.data) == 0:
-    st.session_state.status = "No data to save."
+    st.session_state.status = "No data available to save."
     return None
 
   file_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
