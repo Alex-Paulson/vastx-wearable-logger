@@ -68,6 +68,36 @@ def parse_heart_rate(data):
 
   return heart_rate
 
+def calculate_percentage_threshold(baseline_heart_rate, percentage_threshold):
+  return baseline_heart_rate * (1 + (percentage_threshold / 100))
+
+def get_flag_status(heart_rate, manual_threshold, baseline_heart_rate, percentage_threshold):
+  if heart_rate == "--":
+    return "Waiting for reading"
+  
+  try:
+    heart_rate_value = int(heart_rate)
+    manual_threshold_value = int(manual_threshold)
+    baseline_value = int(baseline_heart_rate)
+    percentage_value = float(percentage_threshold)
+  except ValueError:
+    return "Please enter a valid threshold value."
+  except TypeError:
+    return "Please enter a valid threshold value."
+  
+  calculated_threshold = calculate_percentage_threshold(
+    baseline_value,
+    percentage_value
+  )
+
+  if heart_rate_value > manual_threshold_value:
+    return "Elevated HR"
+  
+  if heart_rate_value > calculated_threshold:
+    return "Elevated HR"
+  
+  return "Normal"
+
 def ble_worker(device_address, output_queue):
   async def connect():
     try:
@@ -83,7 +113,7 @@ def ble_worker(device_address, output_queue):
             "message": "Connection failed."
           })
           return
-
+        
         def handle_heart_rate(sender, data):
           heart_rate = parse_heart_rate(data)
 
@@ -121,7 +151,7 @@ def save_to_csv(participant_id, session_id, notes):
   if len(st.session_state.data) == 0:
     st.session_state.status = "No data available to save."
     return None
-
+  
   file_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
   filename = "VASTX_" + participant_id + "_" + session_id + "_" + file_time + ".csv"
 
@@ -133,6 +163,11 @@ def save_to_csv(participant_id, session_id, notes):
       "device_name",
       "device_address",
       "heart_rate_bpm",
+      "baseline_heart_rate_bpm",
+      "manual_alert_threshold_bpm",
+      "percentage_increase_threshold",
+      "calculated_percentage_threshold_bpm",
+      "flag_status",
       "rr_intervals_ms",
       "event_marker",
       "notes"
@@ -147,7 +182,7 @@ def save_to_csv(participant_id, session_id, notes):
   st.session_state.status = "Data saved successfully."
   return filename
 
-def process_queue(participant_id, session_id, notes):
+def process_queue(participant_id, session_id, notes, baseline_heart_rate, manual_threshold, percentage_threshold):
   while not st.session_state.queue.empty():
     message = st.session_state.queue.get()
 
@@ -156,7 +191,7 @@ def process_queue(participant_id, session_id, notes):
 
       if message["message"] == "Connected.":
         st.session_state.connected = True
-
+    
       if "disconnected" in message["message"]:
         st.session_state.connected = False
         st.session_state.recording = False
@@ -166,6 +201,18 @@ def process_queue(participant_id, session_id, notes):
       heart_rate = message["heart_rate"]
       st.session_state.heart_rate = heart_rate
 
+      flag_status = get_flag_status(
+        heart_rate,
+        manual_threshold,
+        baseline_heart_rate,
+        percentage_threshold
+      )
+
+      calculated_threshold = calculate_percentage_threshold(
+        baseline_heart_rate,
+        percentage_threshold
+      )
+
       if st.session_state.recording:
         st.session_state.data.append({
           "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -174,6 +221,11 @@ def process_queue(participant_id, session_id, notes):
           "device_name": st.session_state.device_name,
           "device_address": st.session_state.device_address,
           "heart_rate_bpm": heart_rate,
+          "baseline_heart_rate_bpm": baseline_heart_rate,
+          "manual_alert_threshold_bpm": manual_threshold,
+          "percentage_increase_threshold": percentage_threshold,
+          "calculated_percentage_threshold_bpm": round(calculated_threshold, 2),
+          "flag_status": flag_status,
           "rr_intervals_ms": "",
           "event_marker": "",
           "notes": notes
@@ -195,7 +247,53 @@ participant_id = st.text_input("Participant ID", value = "P001")
 session_id = st.text_input("Session ID", value = "S001")
 notes = st.text_area("Notes", value = "")
 
-process_queue(participant_id, session_id, notes)
+st.header("Threshold settings")
+
+baseline_heart_rate = st.number_input(
+  "Baseline HR, bpm",
+  min_value = 30,
+  max_value = 220,
+  value = 75,
+  step = 1,
+  help = "Enter the participant's resting or starting heart rate."
+)
+
+manual_threshold = st.number_input(
+  "Alert_threshold, bpm",
+  min_value = 30,
+  max_value = 220,
+  value = 100,
+  step = 1,
+  help = "If the live heart rate is above this value, the app flags Elevated HR."
+)
+
+percentage_threshold = st.number_input(
+  "Percentage increase threshold",
+  min_value = 0,
+  max_value = 200,
+  value = 20,
+  step = 1,
+  help = "If the live heart rate is more than this percentage above baseline, the app flags Elevated HR."
+)
+
+calculated_percentage_threshold = calculate_percentage_threshold(
+  baseline_heart_rate,
+  percentage_threshold
+)
+
+st.write(
+  "Calculated percentage threshold: ",
+  str(round(calculated_percentage_threshold, 2)) + " bpm"
+)
+
+process_queue(
+  participant_id,
+  session_id,
+  notes,
+  baseline_heart_rate,
+  manual_threshold,
+  percentage_threshold,
+)
 
 st.header("Device connection")
 
@@ -232,7 +330,7 @@ if st.button("Connect"):
     for device in st.session_state.devices:
       if device["label"] == selected_device:
         selected = device
-
+    
     if selected is not None:
       st.session_state.device_name = selected["name"]
       st.session_state.device_address = selected["address"]
@@ -244,12 +342,41 @@ if st.button("Connect"):
 
 st.header("Live data")
 
-process_queue(participant_id, session_id, notes)
+process_queue(
+  participant_id,
+  session_id,
+  notes,
+  baseline_heart_rate,
+  manual_threshold,
+  percentage_threshold
+)
+
+flag_status = get_flag_status(
+  st.session_state.heart_rate,
+  manual_threshold,
+  baseline_heart_rate,
+  percentage_threshold
+)
 
 st.metric(
-  label = "Heart rate: ",
+  label = "Heart rate",
   value = str(st.session_state.heart_rate) + " bpm"
 )
+
+st.write("Baseline HR: ", str(baseline_heart_rate) + " bpm")
+st.write("Manual alert threshold: ", str(manual_threshold) + " bpm")
+st.write("Percentage threshold: ", str(percentage_threshold) + "%")
+st.write("Calculated percentage threshold: ", str(round(calculated_percentage_threshold, 2)) + " bpm")
+st.write("Current flag status: ", flag_status)
+
+if flag_status == "Elevated HR":
+  st.error("Mock VASTX message: Elevated heart rate detected. Physiological status flag raised.")
+elif flag_status == "Normal":
+  st.success("Mock VASTX message: Heart rate currently within threshold limits.")
+elif flag_status == "Waiting for reading":
+  st.info("Mock VASTX message: Waiting for live heart rate data.")
+else:
+  st.warning(flag_status)
 
 if st.session_state.connected:
   st.success("Connection status: " + st.session_state.status)
@@ -281,6 +408,23 @@ with col3:
     save_to_csv(participant_id, session_id, notes)
 
 st.write("Recording active: ", st.session_state.recording)
+
+st.header("Session summary")
+
+total_readings = len(st.session_state.data)
+elevated_readings = 0
+normal_readings = 0
+
+for row in st.session_state.data:
+  if row["flag_status"] == "Elevated HR":
+    elevated_readings += 1
+
+  if row["flag_status"] == "Normal":
+    normal_readings += 1
+
+st.write("Total recorded readings: ", total_readings)
+st.write("Normal readings: ", normal_readings)
+st.write("Elevated HR readings: ", elevated_readings)
 
 st.header("Data preview")
 
