@@ -283,7 +283,7 @@ def process_queue(
 
       calculated_threshold = calculate_percentage_threshold(
         baseline_heart_rate,
-        percentage_threshold,
+        percentage_threshold
       )
 
       if st.session_state.recording:
@@ -338,7 +338,8 @@ baseline_heart_rate = st.number_input(
   min_value = 30,
   max_value = 220,
   value = 75,
-  step = 1
+  step = 1,
+  key = "baseline_hr_input"
 )
 
 manual_threshold = st.number_input(
@@ -346,7 +347,8 @@ manual_threshold = st.number_input(
   min_value = 30,
   max_value = 220,
   value = 100,
-  step = 1
+  step = 1,
+  key = "manual_threshold_input"
 )
 
 percentage_threshold = st.number_input(
@@ -354,27 +356,8 @@ percentage_threshold = st.number_input(
   min_value = 0,
   max_value = 200,
   value = 20,
-  step = 1
-)
-
-calculated_percentage_threshold = calculate_percentage_threshold(
-  baseline_heart_rate,
-  percentage_threshold
-)
-
-st.write(
-  "Calculated percentage threshold: "
-  + str(round(calculated_percentage_threshold, 1))
-  + " bpm"
-)
-
-process_queue(
-  participant_id,
-  session_id,
-  notes,
-  baseline_heart_rate,
-  manual_threshold,
-  percentage_threshold
+  step = 1,
+  key = "percentage_threshold_input"
 )
 
 st.header("Device connection")
@@ -403,7 +386,7 @@ selected_device = st.selectbox(
 )
 
 if st.button("Connect"):
-  if selected_devices == "":
+  if selected_device == "":
     st.session_state.status = "Please select a device first."
   else:
     selected = None
@@ -412,7 +395,7 @@ if st.button("Connect"):
       if device["label"] == selected_device:
         selected = device
         break
-    
+
     if selected is not None:
       st.session_state.device_name = selected["name"]
       st.session_state.device_address = selected["address"]
@@ -431,14 +414,14 @@ process_queue(
   notes,
   baseline_heart_rate,
   manual_threshold,
-  percentage_threshold,
+  percentage_threshold
 )
 
 flag_status, flag_reason = get_flag_details(
   st.session_state.heart_rate,
   manual_threshold,
   baseline_heart_rate,
-  percentage_threshold,
+  percentage_threshold
 )
 
 st.metric(
@@ -446,10 +429,14 @@ st.metric(
   value = str(st.session_state.heart_rate) + " bpm"
 )
 
-st.write(
-  "Current flag status: "
-  + flag_status
-)
+if flag_status == "Normal":
+  st.success("Status: Normal")
+elif flag_status == "Elevated HR":
+  st.error("Status: Elevated HR detected")
+elif flag_status == "Waiting for reading":
+  st.info("Status: Waiting for live heart rate")
+else:
+  st.warning("Status: " + flag_status)
 
 st.write(
   "Flag reason: "
@@ -458,16 +445,20 @@ st.write(
 
 if flag_status == "Elevated HR":
   st.error(
-    "Mock VASTX message: Elevated heart rate detected. "
-    "Physiological status flag raised."
+    "Mock VASTX update: cardiac output may be increased. "
+    "Flag for review."
+  )
+  st.caption(
+    "This is not a medical recommendation. "
+    "It only demonstrates the prototype workflow."
   )
 elif flag_status == "Normal":
   st.success(
-    "Mock VASTX message: Heart rate currently within threshold limits."
+    "Mock VASTX update: no elevated heart-rate flag detected."
   )
 else:
   st.info(
-    "Mock VASTX message: Waiting for live heart rate data."
+    "Mock VASTX update: waiting for live physiological data."
   )
 
 if st.session_state.connected:
@@ -502,7 +493,7 @@ with col2:
       st.session_state.status = "Recording stopped."
     else:
       st.session_state.status = (
-        "Recording is not currently available."
+        "Recording is not currently active."
       )
 
 with col3:
@@ -583,9 +574,21 @@ else:
       elevated_readings
     )
 
-    st.metric(
+  st.metric(
       "Percentage flagged",
       str(percentage_flagged) + "%"
+  )
+
+  if elevated_readings > 0:
+    st.warning(
+      "Mock VASTX session note: Elevated HR was detected "
+      "during this session. Cardiac output may be increased. "
+      "Flag for review."
+    )
+  else:
+    st.success(
+      "Mock VASTX session note: No elevated HR flag "
+      "detected during this session."
     )
 
 time.sleep(1)
