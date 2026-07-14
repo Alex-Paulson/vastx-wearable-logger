@@ -55,6 +55,9 @@ def scan_devices():
       "name": name,
       "address": device.address,
       "label": name + " - " + device.address,
+      # Keep the object returned by discovery. On Windows, reconnecting with
+      # only the address makes Bleak perform another lookup and can resolve a
+      # different/incomplete device representation.
       "device": device
     })
 
@@ -140,16 +143,20 @@ def get_flag_details(
 
   return "Normal", "Within threshold"
 
-def ble_worker(device_address, output_queue):
+def ble_worker(device, output_queue):
   async def connect():
     try:
-      async with BleakClient(device_address) as client:
-        if client.is_connected:
-          output_queue.put({
-            "type": "status",
-            "message": "Connected."
-          })
-        else:
+      # Windows can retain an incomplete GATT table for a previously seen
+      # peripheral. Force Bleak to read the services from the H10 each time.
+      async with BleakClient(
+        device,
+        timeout = 60,
+        # Current H10 firmware supports secure BLE connections. Pair before
+        # service discovery so protected measurement services are visible.
+        pair = True,
+        winrt = {"use_cached_services": False}
+      ) as client:
+        if not client.is_connected:
           output_queue.put({
             "type": "status",
             "message": "Connection failed."
@@ -164,10 +171,40 @@ def ble_worker(device_address, output_queue):
             "heart_rate": heart_rate
           })
 
+        heart_rate_characteristic = client.services.get_characteristic(
+          HEART_RATE_MEASUREMENT_UUID
+        )
+
+        if heart_rate_characteristic is None:
+          device_name = device.name if device.name else "Selected device"
+          discovered_services = ", ".join(
+            service.uuid for service in client.services
+          )
+
+          if discovered_services == "":
+            discovered_services = "none"
+
+          raise RuntimeError(
+            device_name
+            + " does not expose the Bluetooth Heart Rate service. "
+            + "Services reported by the device: "
+            + discovered_services
+            + ". "
+            + "Remove the H10 from Windows Bluetooth devices, scan again, "
+            + "and accept the Windows pairing prompt. Also make sure its "
+            + "strap electrodes are wet and being worn, and disconnect it "
+            + "from Polar Flow/Beat or other apps before trying again."
+          )
+
         await client.start_notify(
-          HEART_RATE_MEASUREMENT_UUID,
+          heart_rate_characteristic,
           handle_heart_rate
         )
+
+        output_queue.put({
+          "type": "status",
+          "message": "Connected. Receiving heart-rate data."
+        })
 
         while True:
           await asyncio.sleep(1)
@@ -180,11 +217,11 @@ def ble_worker(device_address, output_queue):
 
   asyncio.run(connect())
 
-def start_connection(device_address):
+def start_connection(device):
   thread = threading.Thread(
     target = ble_worker,
     args = (
-      device_address,
+      device,
       st.session_state.queue
     ),
     daemon = True
@@ -258,7 +295,7 @@ def process_queue(
     if message["type"] == "status":
       st.session_state.status = message["message"]
 
-      if message["message"] == "Connected.":
+      if message["message"].startswith("Connected."):
         st.session_state.connected = True
 
       if "disconnected" in message["message"].lower():
@@ -415,12 +452,22 @@ if st.button("Connect"):
         break
 
     if selected is not None:
+      if "device" not in selected:
+        st.session_state.status = (
+          "Device scan is out of date. Scan for devices again."
+        )
+        st.session_state.connection_thread_started = False
+        st.rerun()
+
       st.session_state.device_name = selected["name"]
       st.session_state.device_address = selected["address"]
-      st.session_state.status = "Connecting to Polar H10."
+      st.session_state.status = (
+        "Connecting to Polar H10. Accept the Windows pairing prompt "
+        "if one appears."
+      )
       st.session_state.connection_thread_started = True
 
-      start_connection(selected["address"])
+      start_connection(selected["device"])
     else:
       st.session_state.status = "Please select a device first."
 
