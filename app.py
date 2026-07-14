@@ -86,7 +86,7 @@ def calculate_percent_above_baseline(
 ):
   if baseline_heart_rate <= 0:
     return 0.0
-  
+
   return (
     (heart_rate - baseline_heart_rate)
     / baseline_heart_rate
@@ -136,7 +136,7 @@ def get_flag_details(
       + percentage_text
       + "% above baseline"
     )
-  
+
   return "Normal", "Within threshold"
 
 def ble_worker(device_address, output_queue):
@@ -154,7 +154,7 @@ def ble_worker(device_address, output_queue):
             "message": "Connection failed."
           })
           return
-        
+
         def handle_heart_rate(sender, data):
           heart_rate = parse_heart_rate(data)
 
@@ -338,8 +338,7 @@ baseline_heart_rate = st.number_input(
   min_value = 30,
   max_value = 220,
   value = 75,
-  step = 1,
-  key = "baseline_hr_input"
+  step = 1
 )
 
 manual_threshold = st.number_input(
@@ -347,8 +346,7 @@ manual_threshold = st.number_input(
   min_value = 30,
   max_value = 220,
   value = 100,
-  step = 1,
-  key = "manual_threshold_input"
+  step = 1
 )
 
 percentage_threshold = st.number_input(
@@ -356,8 +354,27 @@ percentage_threshold = st.number_input(
   min_value = 0,
   max_value = 200,
   value = 20,
-  step = 1,
-  key = "percentage_threshold_input"
+  step = 1
+)
+
+calculated_percentage_threshold = calculate_percentage_threshold(
+  baseline_heart_rate,
+  percentage_threshold
+)
+
+st.write(
+  "Calculated percentage threshold: "
+  + str(round(calculated_percentage_threshold, 1))
+  + " bpm"
+)
+
+process_queue(
+  participant_id,
+  session_id,
+  notes,
+  baseline_heart_rate,
+  manual_threshold,
+  percentage_threshold
 )
 
 st.header("Device connection")
@@ -574,10 +591,10 @@ else:
       elevated_readings
     )
 
-  st.metric(
+    st.metric(
       "Percentage flagged",
       str(percentage_flagged) + "%"
-  )
+    )
 
   if elevated_readings > 0:
     st.warning(
