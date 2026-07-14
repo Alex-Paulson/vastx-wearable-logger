@@ -54,7 +54,8 @@ def scan_devices():
     results.append({
       "name": name,
       "address": device.address,
-      "label": name + " - " + device.address
+      "label": name + " - " + device.address,
+      "device": device
     })
 
   return results
