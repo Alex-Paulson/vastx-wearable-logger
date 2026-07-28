@@ -43,7 +43,7 @@ def initialise_session_state():
 def scan_devices():
   async def scan():
     return await BleakScanner.discover(
-      timeout = 10.0
+      timeout=10.0
     )
 
   devices = asyncio.run(scan())
@@ -60,7 +60,7 @@ def scan_devices():
     })
 
   results.sort(
-    key = lambda item: (
+    key=lambda item: (
       "polar h10" not in item["name"].lower(),
       item["name"].lower()
     )
@@ -85,7 +85,7 @@ def parse_heart_rate(data):
 
     return int.from_bytes(
       data[1:3],
-      byteorder = "little"
+      byteorder="little"
     )
 
   return int(data[1])
@@ -244,9 +244,7 @@ def ble_worker(device, output_queue):
 
       async with BleakClient(
         device,
-        timeout = 60,
-        pair = True,
-        winrt = {
+        winrt={
           "use_cached_services": False
         }
       ) as client:
@@ -328,12 +326,12 @@ def ble_worker(device, output_queue):
 
 def start_connection(device):
   thread = threading.Thread(
-    target = ble_worker,
-    args = (
+    target=ble_worker,
+    args=(
       device,
       st.session_state.queue
     ),
-    daemon = True
+    daemon=True
   )
 
   thread.start()
@@ -358,8 +356,8 @@ def save_to_csv(
     return None
 
   DATA_FOLDER.mkdir(
-    parents = True,
-    exist_ok = True
+    parents=True,
+    exist_ok=True
   )
 
   file_time = datetime.now().strftime(
@@ -401,12 +399,12 @@ def save_to_csv(
 
   with file_path.open(
     "w",
-    newline = "",
-    encoding = "utf-8"
+    newline="",
+    encoding="utf-8"
   ) as file:
     writer = csv.DictWriter(
       file,
-      fieldnames = fieldnames
+      fieldnames=fieldnames
     )
 
     writer.writeheader()
@@ -422,12 +420,12 @@ def save_to_csv(
   return file_path
 
 def process_queue(
-    participant_id,
-    session_id,
-    notes,
-    manual_baseline,
-    manual_threshold,
-    percentage_threshold
+  participant_id,
+  session_id,
+  notes,
+  manual_baseline,
+  manual_threshold,
+  percentage_threshold
 ):
   while not st.session_state.queue.empty():
     message = (
@@ -537,8 +535,8 @@ def process_queue(
 initialise_session_state()
 
 st.set_page_config(
-  page_title = "VASTX Wearable Logger",
-  layout = "wide"
+  page_title="VASTX Wearable Logger",
+  layout="wide"
 )
 
 st.title("VASTX Wearable Logger")
@@ -555,46 +553,46 @@ st.header("Participant details")
 
 participant_id = st.text_input(
   "Participant ID",
-  value = "P001"
+  value="P001"
 )
 
 session_id = st.text_input(
   "Session ID",
-  value = "S001"
+  value="S001"
 )
 
 notes = st.text_area(
   "Notes",
-  value = ""
+  value=""
 )
 
 st.header("Threshold settings")
 
 baseline_heart_rate = st.number_input(
   "Manual baseline HR, bpm",
-  min_value = 30,
-  max_value = 220,
-  value = 75,
-  step = 1,
-  key = "baseline_hr_input"
+  min_value=30,
+  max_value=220,
+  value=75,
+  step=1,
+  key="baseline_hr_input"
 )
 
 manual_threshold = st.number_input(
   "Alert threshold, bpm",
-  min_value = 30,
-  max_value = 220,
-  value = 100,
-  step = 1,
-  key = "manual_threshold_input"
+  min_value=30,
+  max_value=220,
+  value=100,
+  step=1,
+  key="manual_threshold_input"
 )
 
 percentage_threshold = st.number_input(
   "Percentage increase threshold, %",
-  min_value = 0,
-  max_value = 200,
-  value = 20,
-  step = 1,
-  key = "percentage_threshold_input"
+  min_value=0,
+  max_value=200,
+  value=20,
+  step=1,
+  key="percentage_threshold_input"
 )
 
 process_queue(
@@ -613,7 +611,7 @@ active_baseline = get_active_baseline(
 calculated_percentage_threshold = (
   calculate_percentage_threshold(
     active_baseline,
-    percentage_threshold,
+    percentage_threshold
   )
 )
 
@@ -652,7 +650,7 @@ elif st.session_state.baseline_complete:
   )
 
   st.write(
-    "Baseline readings used: ",
+    "Baseline readings used:",
     len(
       st.session_state.baseline_readings
     )
@@ -677,7 +675,7 @@ else:
   )
 
   st.write(
-    "Baseline readings collected: ",
+    "Baseline readings collected:",
     len(
       st.session_state.baseline_readings
     )
@@ -736,9 +734,9 @@ device_labels = [
 
 selected_device = st.selectbox(
   "Detected devices",
-  options = device_labels,
-  index = None,
-  placeholder = "Select a device"
+  options=device_labels,
+  index=None,
+  placeholder="Select a device"
 )
 
 if st.button("Connect"):
@@ -823,8 +821,8 @@ flag_status, flag_reason = (
 )
 
 st.metric(
-  label = "Heart rate",
-  value = (
+  label="Heart rate",
+  value=(
     str(
       st.session_state.heart_rate
     )
@@ -949,7 +947,7 @@ with col3:
     )
 
 st.write(
-  "Recording active: ",
+  "Recording active:",
   st.session_state.recording
 )
 
@@ -962,7 +960,7 @@ if len(st.session_state.data) > 0:
 
   st.dataframe(
     preview_df.tail(10),
-    use_container_width = True
+    use_container_width=True
   )
 else:
   st.write(
