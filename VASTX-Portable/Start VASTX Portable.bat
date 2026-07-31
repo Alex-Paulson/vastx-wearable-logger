@@ -10,6 +10,8 @@ echo.
 
 if not exist "logs" mkdir "logs"
 
+start "" cmd /c "timeout /t 4 /nobreak >nul && start http://localhost:8501"
+
 python\python.exe -m streamlit run app\app.py ^
   --browser.gatherUsageStats false
 
