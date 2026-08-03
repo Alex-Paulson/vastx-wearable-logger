@@ -1,51 +1,65 @@
 @echo off
 setlocal
+
 title VASTX Wearable Logger
 
+rem Always switch to the folder containing this batch file
 cd /d "%~dp0"
-
-if /i "%~1"=="--wait-for-server" goto wait_for_server
 
 echo ==========================================
 echo Starting VASTX Wearable Logger
 echo ==========================================
 echo.
+echo Application folder:
+echo %CD%
+echo.
 
-if not exist "logs" mkdir "logs"
-
-"%~dp0python\python.exe" -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=1).read()" >nul 2>&1
-if not errorlevel 1 (
-  start "" "http://127.0.0.1:8501"
-  exit /b
+if not exist "%~dp0python\python.exe" (
+  echo ERROR: Embedded Python was not found.
+  echo Expected:
+  echo %~dp0python\python.exe
+  echo.
+  pause
+  exit /b 1
 )
 
-start "" /b cmd /d /c call "%~f0" --wait-for-server
+if not exist "%~dp0app\app.py" (
+  echo ERROR: The application file was not found.
+  echo Expected:
+  echo %~dp0app\app.py
+  echo.
+  pause
+  exit /b 1
+)
+
+if not exist "%~dp0packages\streamlit" (
+  echo ERROR: Streamlit was not found in the portable packages folder.
+  echo Expected:
+  echo %~dp0packages\streamlit
+  echo.
+  pause
+  exit /b 1
+)
+
+if not exist "%~dp0logs" (
+  mkdir "%~dp0logs"
+)
+
+echo Embedded Python and application files found.
+echo Starting Streamlit...
+echo.
+
+start "" powershell -NoProfile -WindowStyle Hidden -Command ^
+  "Start-Sleep -Seconds 5; Start-Process 'http://127.0.0.1:8501'"
 
 "%~dp0python\python.exe" -m streamlit run "%~dp0app\app.py" ^
   --global.developmentMode false ^
   --server.address 127.0.0.1 ^
   --server.port 8501 ^
-  --server.headless true ^
   --browser.gatherUsageStats false
 
 echo.
 echo The application has stopped.
 pause
-exit /b
 
-:wait_for_server
-set "VASTX_URL=http://127.0.0.1:8501"
-set /a VASTX_ATTEMPTS=0
-
-:check_server
-"%~dp0python\python.exe" -c "import urllib.request; urllib.request.urlopen('%VASTX_URL%/_stcore/health', timeout=1).read()" >nul 2>&1
-if not errorlevel 1 goto open_browser
-
-set /a VASTX_ATTEMPTS+=1
-if %VASTX_ATTEMPTS% geq 120 exit /b 1
-timeout /t 1 /nobreak >nul
-goto check_server
-
-:open_browser
-start "" "%VASTX_URL%"
-exit /b
+endlocal
