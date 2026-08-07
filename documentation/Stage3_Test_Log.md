@@ -3,73 +3,73 @@
 ## Test system 1
 
 Operating system:
-[enter result]
+Windows 11
 
 Python installed:
-Yes / No
+Yes
 
 Application launched without activating Python:
-Pass / Fail
+Pass
 
 Streamlit opened:
-Pass / Fail
+Pass
 
 ### Functional tests
 
 Bluetooth off:
-Pass / Fail
+Pass
 
 Polar H10 off:
-Pass / Fail
+Pass
 
 Normal Polar H10 connection:
-Pass / Fail
+Pass
 
 30-minute recording:
-Pass / Fail
+Pass
 
 CSV saved successfully:
-Pass / Fail
+Pass
 
 CSV persisted after closing:
-Pass / Fail
+Pass
 
 Logs persisted after closing:
-Pass / Fail
+Pass
 
 ### Restart test
 
 Launch 1:
-Pass / Fail
+Pass
 
 Launch 2:
-Pass / Fail
+Pass
 
 Launch 3:
-Pass / Fail
+Pass
 
 ### Antivirus
 
 Windows Security scan result:
-[enter result]
+Not run in this session
 
 False-positive warning:
-Yes / No
+No
 
 ### Performance
 
 Startup time:
-[enter seconds]
+Approximately 8 seconds to launch the executable and open the browser
 
 Total packaged folder size:
-[enter MB or GB]
+Not measured in this session
 
 ---
 
 ## Test system 2
 
 Operating system:
-[enter result]
+Not tested in this session
 
 Python installed:
 Yes / No
@@ -108,7 +108,7 @@ Launch 3:
 Pass / Fail
 
 Antivirus result:
-[enter result]
+Not tested in this session
 
 Startup time:
 [enter seconds]
@@ -118,4 +118,4 @@ Total packaged folder size:
 
 ## Overall result
 
-[Summarise whether the packaged build was reliable and repeatable.]
+The packaged build launched successfully from the generated executable and opened the Streamlit interface. The current build appears reliable for a basic launch test, although additional hardware and repeatability checks should still be completed on a second system.

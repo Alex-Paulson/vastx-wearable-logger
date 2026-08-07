@@ -5,23 +5,21 @@
 ### Build Command
 
 ```powershell
-pyinstaller --name "VASTX Wearable Logger" --onedir --add-data "app.py;." launcher.py
+.\build_env\Scripts\python.exe -m PyInstaller --noconfirm --clean --name "VASTX Wearable Logger" --onedir --add-data "app.py;." --collect-all streamlit launcher.py
 ```
 
 ### Result
 
 - Build completed: Yes
 - Executable created: Yes
-- Executable launched: [Yes/No]
-- Browser opened: [Yes/No]
-- Streamlit application loaded: [Yes/No]
+- Executable launched: Yes
+- Browser opened: Yes
+- Streamlit application loaded: Yes
 
 ### Errors Encountered
 
-Record any error messages here. If there were no errors, write:
-
-None.
+Warnings were reported during packaging for optional system DLLs such as dbghelp.dll, bcrypt.dll, and IPHLPAPI.DLL, but the build completed successfully.
 
 ### Notes
 
-Record any observations, changes made, or additional files that needed to be included in the build.
+The packaged app was rebuilt from the current source files, including the latest application entry point and launcher. The executable was verified to start successfully from the generated folder at dist/VASTX Wearable Logger/VASTX Wearable Logger.exe.

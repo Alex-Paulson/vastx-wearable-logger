@@ -4,20 +4,18 @@ import re
 import threading
 import time
 from datetime import datetime
-from pathlib import Path
 from queue import Queue
 
 import pandas as pd
 import streamlit as st
 from bleak import BleakClient, BleakScanner
+from runtime_paths import DATA_FOLDER
 
 HEART_RATE_MEASUREMENT_UUID = (
   "00002a37-0000-1000-8000-00805f9b34fb"
 )
 
 BASELINE_DURATION_SECONDS = 300
-DATA_FOLDER = Path(__file__).resolve().parent / "data"
-
 def initialise_session_state():
   defaults = {
     "devices": [],
