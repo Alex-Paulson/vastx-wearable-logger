@@ -1,0 +1,7 @@
+python312.zip
+.
+
+..\packages
+..\app
+
+import site
